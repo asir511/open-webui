@@ -429,7 +429,7 @@ class FlatTableResponse(BaseModel):
 
 # ========= LangChain 组装 =========
 
-OPENAI_BASE_URL = "http://47.243.192.2:15048/v1"
+OPENAI_BASE_URL = "http://192.168.0.114/v1"
 OPENAI_MODEL = "chat1"
 OPENAI_API_KEY = "sk-2pH4HUSK4wikhU7NSqMqF3Ldi7c2r89sJmRQBBJ9PS7vN1AM"
 
