@@ -2,7 +2,7 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 from typing import List, Optional, Literal, Dict, Any
-from utils.llm_utils import extract_rows_from_text, flatten_to_cells
+from utils.llm_utils import extract_rows_from_text, flatten_to_cells, reconcile_rows_with_llm
 
 router = APIRouter()
 
@@ -41,8 +41,7 @@ class ExtractReq(BaseModel):
     fields: List[AbsFieldIn]
     document: DocumentIn
 
-
-# ---- 出参（直接按 AppExCell 结构需要的字段给到 Java） ----
+# ---- 出参（按 AppExCell 需要的字段给 Java） ----
 class CellOut(BaseModel):
     rowId: str
     fieldId: str
@@ -56,6 +55,9 @@ class CellOut(BaseModel):
     valueJson: Optional[str] = None
     unit: Optional[str] = None
     notes: Optional[str] = None
+    # ✅ 每个字段只保留一段原文摘录 + 简短理由
+    evidenceText: Optional[str] = None
+    reason: Optional[str] = None
 
 class ExtractResp(BaseModel):
     taskId: str
@@ -76,8 +78,7 @@ def extract(req: ExtractReq):
         raise HTTPException(status_code=400, detail="文档内容 contentMd 不能为空")
 
     try:
-        # 1) 调 LLM，返回 rows: List[Dict[fieldKey, Any]]
-        rows = extract_rows_from_text(
+        rows_stage1 = extract_rows_from_text(
             model_name=req.modelName,
             temperature=req.temperature or 0.2,
             content_md=req.document.contentMd,
@@ -87,18 +88,33 @@ def extract(req: ExtractReq):
             fields=[f.model_dump() for f in req.fields],
             lang=req.document.lang or "zh",
             table_desc=req.tableDescription or "",
-            filename=(req.document.originalName or req.document.title)  # ✅ 带上来源文件名
+            filename=(req.document.originalName or req.document.title)
         )
 
-        # 2) 扁平化为 cells（按照 AppExCell 的 value_* 列位）
+        # —— 二次核对与归并（允许多主键多记录，择优/去噪/留空）——
+        rows_final = reconcile_rows_with_llm(
+            model_name=req.modelName,
+            temperature=(req.temperature or 0.2),
+            table_key=req.tableKey,
+            table_display_name=req.tableDisplayName or req.tableKey,
+            table_desc=req.tableDescription or "",
+            lang=req.document.lang or "zh",
+            fields=[f.model_dump() for f in req.fields],
+            extracted_rows=rows_stage1
+        )
+
         field_map = {f.fieldKey: f for f in req.fields}
         cells = flatten_to_cells(
-            rows=rows,
+            rows=rows_final,
             field_map=field_map,
             task_id=req.taskId
         )
 
-        return ExtractResp(taskId=req.taskId, cells=[CellOut(**c) for c in cells], rows_count=len(set([c["rowId"] for c in cells])))
+        return ExtractResp(
+            taskId=req.taskId,
+            cells=[CellOut(**c) for c in cells],
+            rows_count=len({c["rowId"] for c in cells})
+        )
 
     except HTTPException:
         raise
