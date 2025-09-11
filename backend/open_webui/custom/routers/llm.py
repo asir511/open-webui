@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
-from typing import List, Optional, Literal, Dict, Any
+from typing import List, Optional, Literal
 from utils.llm_utils import extract_rows_from_text, flatten_to_cells, reconcile_rows_with_llm
 
 router = APIRouter()
@@ -65,12 +65,13 @@ class ExtractResp(BaseModel):
     rows_count: int
 
 @router.post("/extract", response_model=ExtractResp)
-def extract(req: ExtractReq):
+async def extract(req: ExtractReq):
     """
-    单子任务抽取：
-    - 按 chunkTokens 对 contentMd 切片
-    - 对每个切片进行结构化抽取
-    - 汇总为 rows，再扁平为 cells（按字段类型落位）
+    单子任务抽取（异步并发版）：
+    - 文本去噪（目录/图片视频外链）→ 切片
+    - 第一轮对每个切片并发抽取
+    - 第一轮结果按主键分组，只有组内>1条才并发进行二轮合并研判与格式验证
+    - 扁平为 cells
     """
     if not req.fields:
         raise HTTPException(status_code=400, detail="字段定义不能为空")
@@ -78,11 +79,11 @@ def extract(req: ExtractReq):
         raise HTTPException(status_code=400, detail="文档内容 contentMd 不能为空")
 
     try:
-        rows_stage1 = extract_rows_from_text(
+        rows_stage1 = await extract_rows_from_text(
             model_name=req.modelName,
-            temperature=req.temperature or 0.2,
+            temperature=req.temperature or 0.1,
             content_md=req.document.contentMd,
-            chunk_tokens=req.chunkTokens or 2000,
+            chunk_tokens=req.chunkTokens or 4000,
             table_key=req.tableKey,
             table_display_name=req.tableDisplayName or req.tableKey,
             fields=[f.model_dump() for f in req.fields],
@@ -91,10 +92,10 @@ def extract(req: ExtractReq):
             filename=(req.document.originalName or req.document.title)
         )
 
-        # —— 二次核对与归并（允许多主键多记录，择优/去噪/留空）——
-        rows_final = reconcile_rows_with_llm(
+        # —— 二次核对与归并（按主键分组；组内>1条才调用 LLM；并发）——
+        rows_final = await reconcile_rows_with_llm(
             model_name=req.modelName,
-            temperature=(req.temperature or 0.2),
+            temperature=(req.temperature or 0.1),
             table_key=req.tableKey,
             table_display_name=req.tableDisplayName or req.tableKey,
             table_desc=req.tableDescription or "",
