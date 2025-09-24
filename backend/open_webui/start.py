@@ -1,15 +1,14 @@
-import os
+# start.py
+import os, sys
 import uvicorn
 
 if __name__ == "__main__":
-    # 设置端口，默认为 8080
-    port = int(os.environ.get("PORT", 8080))
-
-    # 运行 Uvicorn 服务器
+    port = int(os.environ.get("PORT", 6666))
     uvicorn.run(
         "open_webui.main:app",
         host="0.0.0.0",
         port=port,
         forwarded_allow_ips="*",
-        reload=True
+        reload=False,
+        app_dir="/home/santi/python/open-webui-jeecgboot/open-webui/backend",
     )

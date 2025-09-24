@@ -13,8 +13,8 @@ from langchain.text_splitter import MarkdownHeaderTextSplitter
 
 # ========= 可配置 =========
 OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "http://192.168.0.114:3000/v1")
-OPENAI_API_KEY  = "sk-2pH4HUSK4wikhU7NSqMqF3Ldi7c2r89sJmRQBBJ9PS7vN1AM"
-OPENAI_TIMEOUT  = int(os.getenv("OPENAI_TIMEOUT", "7200"))
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "sk-2pH4HUSK4wikhU7NSqMqF3Ldi7c2r89sJmRQBBJ9PS7vN1AM")
+OPENAI_TIMEOUT  = int(os.getenv("OPENAI_TIMEOUT", "300"))
 
 # 并发控制（按你的要求：3~4 并发）
 EXTRACT_CONCURRENCY   = int(os.getenv("EXTRACT_CONCURRENCY", "8"))
@@ -137,6 +137,45 @@ def _chunk_text_by_tokens_force(text: str, max_tokens: int, overlap_tokens: int,
         i += stride
     return chunks
 
+def _repack_greedy(units: list[str], max_tokens: int, enc, *, joiner: str = "\n\n") -> list[str]:
+    """
+    将已保证单元 <= max_tokens 的 'units' 顺序贪心打包为更接近 max_tokens 的大块。
+    - 不打乱顺序，不跨越原子边界；
+    - 计算拼接分隔符 joiner 的 token 成本，避免超限；
+    - 如遇单个 unit 本就接近 max_tokens，会单独成块。
+    """
+    if not units:
+        return [""]
+
+    def tlen(s: str) -> int:
+        return len(enc.encode(s))
+
+    joiner_tok = tlen(joiner)
+    out, buf, buf_tok = [], [], 0
+
+    for u in units:
+        if not u.strip():
+            continue
+        utok = tlen(u)
+        # 这里假定所有 unit 事先已经 <= max_tokens
+        if not buf:
+            # 新建缓冲
+            buf, buf_tok = [u], utok
+            continue
+
+        # 预计加入 u 后的 token：已有 + 分隔符 + utok
+        need = buf_tok + (joiner_tok if buf else 0) + utok
+        if need <= max_tokens:
+            buf.append(u)
+            buf_tok = need
+        else:
+            # 先吐出当前缓冲，再以 u 开新块
+            out.append(joiner.join(buf))
+            buf, buf_tok = [u], utok
+
+    if buf:
+        out.append(joiner.join(buf))
+    return out
 
 def split_markdown_packed(
     content: str,
@@ -243,7 +282,7 @@ def split_markdown_packed(
             buf_tokens += tl
 
         flush_buf()
-
+    out_chunks = _repack_greedy(out_chunks, max_tokens, enc, joiner="\n\n")
     # 5) token 级 overlap：在最终块之间追加重叠（仅当需要）
     if overlap_tokens and overlap_tokens > 0 and out_chunks:
         with_overlap: list[str] = []
@@ -382,7 +421,8 @@ def _system_prompt(table_key: str, table_display: str, table_desc: str, lang: st
         "### 抽取原则\n"
         "1) 所有字段值必须直接来源于原文，或通过原文中可验证的明确推导；**不得臆测**。\n"
         "2) 不可仅凭单一句话下结论，应结合上下文/上下段/表格整体内容综合判断。\n"
-        "3) 若缺乏充分证据，字段值留空。\n\n"
+        "3) 在没有字段描述的情况下，根据字段的名称来准确的定义语义，对应找出的数据(如果有的话)必须完全符合字段语义，不能有任何臆测、幻想的数值匹配。\n"
+        "4) 若缺乏充分证据，字段值留空。\n\n"
         "### 输出要求\n"
         "1) 仅输出 JSON：形如 {\"rows\": [ {<fieldKey>: <value>, ..., \"__explain\": {...}} ]}。\n"
         "2) 键必须使用 fieldKey；类型需符合定义；date=yyyy-MM-dd；datetime=yyyy-MM-dd HH:mm:ss；boolean=true/false。\n"
