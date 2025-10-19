@@ -497,7 +497,7 @@ from open_webui.tasks import (
 from open_webui.utils.redis import get_sentinels_from_env
 
 from open_webui.custom.routers import (
-    files_loader,llm
+    files_loader,llm,bi_graph
 )
 
 
@@ -1310,6 +1310,7 @@ app.include_router(files.router, prefix="/api/v1/files", tags=["files"])
 app.include_router(functions.router, prefix="/api/v1/functions", tags=["functions"])
 app.include_router(files_loader.router, prefix="/api/v1/custom/files", tags=["custom_files"])
 app.include_router(llm.router, prefix="/api/v1/custom/llm", tags=["custom_llm"])
+app.include_router(bi_graph.router, prefix="/api/v1/custom/bigraph", tags=["custom_bigraph"])
 app.include_router(
     evaluations.router, prefix="/api/v1/evaluations", tags=["evaluations"]
 )
