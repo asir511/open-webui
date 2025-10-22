@@ -1,21 +1,28 @@
-# app/services/milvus_service.py
 from __future__ import annotations
 import os
 from typing import List, Dict, Any, Optional
-from pymilvus import connections, Collection
+from pymilvus import connections, db, utility, Collection
 
-MILVUS_ENDPOINT = os.getenv("MILVUS_ENDPOINT", "http://192.168.0.114:19530")
-MILVUS_TOKEN = os.getenv("MILVUS_TOKEN", "root:Milvus")
+MILVUS_ADDR = os.getenv("MILVUS_ADDR", "192.168.0.114:19530")  # 不要 http://
+MILVUS_USER = os.getenv("MILVUS_USER", "root")
+MILVUS_PASS = os.getenv("MILVUS_PASS", "Milvus")
+MILVUS_DB   = os.getenv("MILVUS_DB", "sql_prompt")
 
-def _connect_once():
-    # idempotent：多次调用也只保留一个连接
-    if "default" not in connections.list_connections():
-        connections.connect(uri=MILVUS_ENDPOINT, token=MILVUS_TOKEN)
+def connect_milvus():
+    connections.connect(
+        alias="default",
+        address=MILVUS_ADDR,
+        user=MILVUS_USER,
+        password=MILVUS_PASS,
+        secure=False,
+    )
+    db.using_database(MILVUS_DB)
+    # 连通性 & 版本
+    print("Milvus version:", utility.get_server_version())
 
 def search_sql_examples(
     query_vector: List[float],
     collection_name: str = "llm_jeecgboot_springboot3",
-    partition_name: Optional[str] = "sql_prompt",
     vector_field: str = "vector",
     top_k: int = 2,
     output_fields: Optional[List[str]] = None,
@@ -23,19 +30,22 @@ def search_sql_examples(
     metric_type: str = "IP",
     params: Optional[Dict[str, Any]] = None,
 ) -> List[Dict[str, Any]]:
-    """
-    返回形如 [{"question": "...", "content": "..."}, ...]
-    """
-    _connect_once()
-    coll = Collection(collection_name)
-    if partition_name:
-        coll.load(partition_names=[partition_name])
-    else:
-        coll.load()
+    connect_milvus()
 
-    search_params = {"metric_type": metric_type}
-    if params:
-        search_params.update(params)
+    if not utility.has_collection(collection_name):
+        raise RuntimeError(f"集合不存在: {collection_name} (db={MILVUS_DB})")
+
+    coll = Collection(collection_name)
+
+    # 分区检查
+    load_kwargs = {}
+
+    coll.load(**load_kwargs)
+
+    search_params = {
+        "metric_type": "COSINE",
+        "params": {"ef": 64}
+    }
 
     res = coll.search(
         data=[query_vector],
@@ -44,16 +54,12 @@ def search_sql_examples(
         limit=top_k,
         expr=expr,
         output_fields=output_fields or ["question", "content"],
-        partition_names=[partition_name] if partition_name else None,
     )
 
-    # res 是一个 list[Hits]；我们只取第 1 条查询的 hits
     hits = res[0]
+    fields = output_fields or ["question", "content"]
     out: List[Dict[str, Any]] = []
     for h in hits:
-        # h.entity.get("field")
-        item = {}
-        for f in (output_fields or ["question", "content"]):
-            item[f] = h.entity.get(f)
+        item = {f: h.entity.get(f) for f in fields}
         out.append(item)
     return out

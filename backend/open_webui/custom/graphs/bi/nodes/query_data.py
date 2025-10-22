@@ -127,8 +127,7 @@ async def query_data(state: BiGraphState, writer: StreamWriter) -> Dict[str, Any
         query_vector = embed_query(sql_input)
         sql_examples = search_sql_examples(
             query_vector=query_vector,
-            collection_name="llm_jeecgboot_springboot3",
-            partition_name="sql_prompt",
+            collection_name="llm_jeecgboot_glj",
             vector_field="vector",
             top_k=2,
             output_fields=["question", "content"],
@@ -158,7 +157,7 @@ async def query_data(state: BiGraphState, writer: StreamWriter) -> Dict[str, Any
 用户的问题：{sql_input}
 
 请根据上述信息，生成一个可直接运行的 SQL 语句来查询用户需要的数据。
-SQL 语句必须基于提供的表名和字段，且符合数据库类型的要求,展示的字段名尽量 as 为中文,
+SQL 语句必须基于提供的表名和字段，且符合数据库类型的要求,展示的字段名尽量 as 为中文,注意别名需要用引号包裹,
 需要注意的是如果是聚合的数值类数据为空或者不存在的情况尽量赋值为 0 或者不查询该字段。
     """.strip()
 

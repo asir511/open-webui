@@ -13,13 +13,12 @@ async def init_state(state: BiGraphState, config: Optional[RunnableConfig] = Non
       - 重置各控制字段
     """
     history = list(state.get("chatHistory", []) or [])
-    if state.get("input"):
-        history.append({"role": "user", "content": state["input"]})
+    new_entry = {"role": "user", "content": state.get("input", "")}
 
     chat_history_str = format_chat_history(history, rounds=3)
 
     return {
-        "chatHistory": history,
+        "chatHistory": [new_entry],
         "chatHistoryString": chat_history_str,
         "intent": None,              # 重置意图
         "sql_input": None,           # 重置数据查询相关问题

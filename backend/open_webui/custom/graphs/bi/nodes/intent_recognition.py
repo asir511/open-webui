@@ -37,8 +37,10 @@ async def intent_recognition(state: BiGraphState, config: Optional[RunnableConfi
         "query_data, generate_chart, normal_QA。\n\n"
         f"历史对话：{chat_history_str}\n\n"
         f"用户问题：{user_input}\n"
-        "注意: 查询、统计、分类、排序等为目的都算 query_data；"
+        "必须以用户的问题为核心来思考，不能被历史对话而影响覆盖掉用户本轮的意思"
+        "注意: 如果查询、统计、分类、排序等为目的算 query_data；"
         "若目的是画图/绘图，则归类 generate_chart。"
+        "若目的是询问或者与上述目的不相关则为 normal_QA"
     )
 
     if chat_model is None:
