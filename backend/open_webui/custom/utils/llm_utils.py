@@ -12,8 +12,8 @@ import re
 from langchain.text_splitter import MarkdownHeaderTextSplitter
 
 # ========= 可配置 =========
-OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "http://192.168.0.114:3000/v1")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "sk-2pH4HUSK4wikhU7NSqMqF3Ldi7c2r89sJmRQBBJ9PS7vN1AM")
+OPENAI_BASE_URL = "http://192.168.0.114:3000/v1"
+OPENAI_API_KEY = "sk-2pH4HUSK4wikhU7NSqMqF3Ldi7c2r89sJmRQBBJ9PS7vN1AM"
 OPENAI_TIMEOUT  = int(os.getenv("OPENAI_TIMEOUT", "300"))
 
 # 并发控制（按你的要求：3~4 并发）

@@ -3,7 +3,7 @@ import os
 from typing import List, Dict, Any, Optional
 from pymilvus import connections, db, utility, Collection
 
-MILVUS_ADDR = os.getenv("MILVUS_ADDR", "192.168.0.114:19530")  # 不要 http://
+MILVUS_ADDR = os.getenv("MILVUS_ADDR", "192.168.0.114:19530")
 MILVUS_USER = os.getenv("MILVUS_USER", "root")
 MILVUS_PASS = os.getenv("MILVUS_PASS", "Milvus")
 MILVUS_DB   = os.getenv("MILVUS_DB", "sql_prompt")

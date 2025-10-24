@@ -187,10 +187,12 @@ SQL 语句必须基于提供的表名和字段，且符合数据库类型的要�
     # 7) 标题生成
     emit_think(writer, node="数据查询", sub_node="标题生成", state="START", content="开始生成数据查询结果的标题")
     emit_flow(writer, step=10, node="标题生成", text="生成结果标题。")
+    import datetime
     title_prompt = (
         f"请综合下面的聊天记录（在上下文存在关联的情况）: {chat_history_str}\n\n"
         f"用户的问题：{sql_input}\n\n"
         f"生成的sql语句：{generated_sql}\n\n"
+        f"当前时间：{datetime.datetime.now()}\n\n"
         "生成sql语句所查询的数据的简要描述，简洁描述内容即可不要超过30个字"
     )
     if chat_model is None:
